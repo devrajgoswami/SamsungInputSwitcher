@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import threading
+import time
 import warnings
 from typing import Iterable, List, Optional
 
@@ -29,12 +31,20 @@ class SamsungMonitor:
     chosen by navigating the Source menu. The menu does not wrap at its ends,
     which makes it possible to reach a known position from any starting point:
     press UP enough times to land on the first entry, then step down.
+
+    The WebSocket is opened per switch and closed afterwards. It is deliberately
+    not kept open: the monitor pings every ~6 seconds and closes the socket with
+    "notack" after three unanswered pings, so holding one would mean running a
+    reader thread that pongs forever. The watcher hides part of the handshake
+    cost by starting it while the USB bus settles instead.
     """
 
     def __init__(self, config: Config, host: Optional[str] = None):
         self.config = config
         self.host = host or config.effective_host()
         self._tv: Optional[SamsungTVWS] = None
+        # The tray menu and the watch loop can both drive the monitor.
+        self._lock = threading.RLock()
 
     # ---------------------------------------------------------------- connect
 
@@ -81,12 +91,31 @@ class SamsungMonitor:
         self._tv.open()
 
     def close(self) -> None:
-        if self._tv is not None:
-            try:
-                self._tv.close()
-            except Exception:  # noqa: BLE001
-                pass
-            self._tv = None
+        with self._lock:
+            if self._tv is not None:
+                try:
+                    self._tv.close()
+                except Exception:  # noqa: BLE001
+                    pass
+                self._tv = None
+
+    def is_alive(self) -> bool:
+        """True when the WebSocket is open and usable."""
+        tv = self._tv
+        if tv is None:
+            return False
+        try:
+            return bool(tv.is_alive())
+        except Exception:  # noqa: BLE001
+            return False
+
+    def ensure_connected(self) -> None:
+        """Connect only if the existing socket is gone."""
+        with self._lock:
+            if self.is_alive():
+                return
+            self.close()
+            self.connect()
 
     def __enter__(self) -> "SamsungMonitor":
         self.connect()
@@ -103,12 +132,13 @@ class SamsungMonitor:
         The pause is handed to the library rather than applied here, so each
         key costs one delay instead of two.
         """
-        if self._tv is None:
-            raise MonitorError("Not connected; call connect() first.")
-        gap = self.config.key_delay if delay is None else delay
-        for key in keys:
-            self._tv.send_key(key, key_press_delay=gap)
-            log.debug("sent %s (+%.2fs)", key, gap)
+        with self._lock:
+            if self._tv is None:
+                raise MonitorError("Not connected; call connect() first.")
+            gap = self.config.key_delay if delay is None else delay
+            for key in keys:
+                self._tv.send_key(key, key_press_delay=gap)
+                log.debug("sent %s (+%.2fs)", key, gap)
 
     # ----------------------------------------------------------------- inputs
 
@@ -119,26 +149,36 @@ class SamsungMonitor:
             valid = ", ".join(sorted(self.config.inputs))
             raise MonitorError(f"Unknown input '{input_key}'. Valid inputs: {valid}")
 
+        homing = max(self.config.list_length - 1, 1)
+        below = max(self.config.list_length - 1 - spec.index, 0)
+
+        # The list does not wrap at *either* end, so pressing UP (length - 1)
+        # times pins the highlight to the first entry and DOWN (length - 1)
+        # times pins it to the last, both from any starting point. Home from
+        # whichever end is closer: for a 3-entry list that is 2 keys instead of
+        # 4 for the bottom entry, and the Tizen UI needs 0.3s per key.
         keys = ["KEY_SOURCE"]
-        # Home to the top of the list. The list does not wrap, so pressing UP
-        # (length - 1) times lands on the first entry from any starting point
-        # and makes the current input irrelevant.
-        keys += ["KEY_UP"] * max(self.config.list_length - 1, 1)
-        keys += ["KEY_DOWN"] * spec.index
+        if homing + below < homing + spec.index:
+            keys += ["KEY_DOWN"] * homing
+            keys += ["KEY_UP"] * below
+        else:
+            keys += ["KEY_UP"] * homing
+            keys += ["KEY_DOWN"] * spec.index
         keys.append("KEY_ENTER")
         return keys
 
     def select_input(self, input_key: str) -> None:
-        spec = self.config.inputs[input_key]
         keys = self.key_sequence_for(input_key)
+        spec = self.config.inputs[input_key]
+        started = time.perf_counter()
 
-        if self._tv is None:
-            raise MonitorError("Not connected; call connect() first.")
+        with self._lock:
+            self.ensure_connected()
+            # The Source menu needs longer to appear than a navigation step.
+            self._tv.send_key(keys[0], key_press_delay=self.config.menu_delay)  # type: ignore[union-attr]
+            self.send_keys(keys[1:])
 
-        # The Source menu needs longer to appear than a navigation step.
-        self._tv.send_key(keys[0], key_press_delay=self.config.menu_delay)
-        self.send_keys(keys[1:])
-        log.info("Selected %s (%s)", input_key, spec.label)
+        log.info("Selected %s (%s) in %.1fs", input_key, spec.label, time.perf_counter() - started)
 
     # -------------------------------------------------------------- inspection
 

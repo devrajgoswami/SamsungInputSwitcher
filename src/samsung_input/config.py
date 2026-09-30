@@ -30,7 +30,7 @@ def resolved_host_path() -> Path:
 
 
 def log_path() -> Path:
-    return state_dir() / "switcher.log"
+    return state_dir() / "watcher.log"
 
 
 @dataclass
@@ -62,9 +62,14 @@ class Config:
     scan_timeout: float = 3.0
 
     sentinel_instance_ids: List[str] = field(default_factory=list)
-    poll_interval: float = 0.4
+    poll_interval: float = 0.12
+    settle_interval: float = 0.35
+    debounce_interval: float = 3.0
     present_input: str = "hdmi1"
     absent_input: str = "usbc"
+
+    tray_enabled: bool = True
+    tray_notify_errors: bool = True
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any], path: Path) -> "Config":
@@ -73,6 +78,7 @@ class Config:
         tim = data.get("timing", {})
         dis = data.get("discovery", {})
         usb = data.get("usbSwitch", {})
+        tray = data.get("tray", {})
 
         inputs = {
             key: InputSpec(key=key, index=int(spec["index"]), label=spec.get("label", key))
@@ -100,9 +106,13 @@ class Config:
             discovery_enabled=bool(dis.get("enabled", True)),
             scan_timeout=float(dis.get("portScanTimeoutSeconds", 3)),
             sentinel_instance_ids=list(sentinels),
-            poll_interval=float(usb.get("pollIntervalSeconds", 0.4)),
+            poll_interval=float(usb.get("pollIntervalSeconds", 0.12)),
+            settle_interval=float(usb.get("settleSeconds", 0.35)),
+            debounce_interval=float(usb.get("debounceSeconds", 3)),
             present_input=usb.get("presentInput", "hdmi1"),
             absent_input=usb.get("absentInput", "usbc"),
+            tray_enabled=bool(tray.get("enabled", True)),
+            tray_notify_errors=bool(tray.get("notifyOnError", True)),
         )
 
     def effective_host(self) -> str:

@@ -11,8 +11,16 @@
   "_sourceListComment": [
     "The monitor has no DDC/CI, so inputs are chosen by driving the on-screen",
     "Source list with remote keys. 'index' is the position from the TOP of that",
-    "list. The list does not wrap, so the switcher homes to the top with",
-    "repeated KEY_UP presses and then steps down 'index' times."
+    "list and 'length' is how many entries it has.",
+    "",
+    "The list does not wrap at EITHER end, so pressing UP (length - 1) times",
+    "pins the highlight to the first entry and DOWN (length - 1) times pins it",
+    "to the last, from any starting position. The switcher homes from whichever",
+    "end is nearer the target: 2 keys instead of 4 for USB-C, which at 0.3s per",
+    "key is 0.6s off every switch to the laptop.",
+    "",
+    "If you change this list, re-check both that it still does not wrap and",
+    "that nothing sits below the last entry."
   ],
   "sourceList": {
     "length": 3,
@@ -32,6 +40,11 @@
   "discovery": {
     "enabled": true,
     "portScanTimeoutSeconds": 3
+  },
+
+  "tray": {
+    "enabled": true,
+    "notifyOnError": true
   },
 
   "usbSwitch": {
@@ -54,7 +67,17 @@
       "USB\\VID_046D&PID_C336\\066634543336",
       "USB\\VID_046D&PID_C548"
     ],
-    "pollIntervalSeconds": 0.4,
+    "_timingComment": [
+      "A presence check costs about 0.3 ms, so polling several times a second",
+      "is effectively free. settleSeconds only has to survive a momentary drop:",
+      "removal is simultaneous and arrival only needs the first sentinel to",
+      "appear, so it does not need to cover the whole re-enumeration burst.",
+      "Within debounceSeconds a second change is delayed and then applied, not",
+      "dropped - dropping it would leave the monitor on the wrong machine."
+    ],
+    "pollIntervalSeconds": 0.12,
+    "settleSeconds": 0.35,
+    "debounceSeconds": 3,
     "presentInput": "hdmi1",
     "absentInput": "usbc"
   }
