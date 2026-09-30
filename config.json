@@ -1,0 +1,61 @@
+{
+  "monitor": {
+    "host": "192.168.0.67",
+    "port": 8002,
+    "clientName": "SamsungInputSwitcher",
+    "deviceId": "uuid:4aa2e924-8730-439b-90a6-875fd801c904",
+    "wifiMac": "6C:70:CB:F0:76:F2",
+    "modelName": "LS32DM700UWXXL"
+  },
+
+  "_sourceListComment": [
+    "The monitor has no DDC/CI, so inputs are chosen by driving the on-screen",
+    "Source list with remote keys. 'index' is the position from the TOP of that",
+    "list. The list does not wrap, so the switcher homes to the top with",
+    "repeated KEY_UP presses and then steps down 'index' times."
+  ],
+  "sourceList": {
+    "length": 3,
+    "inputs": {
+      "tv":    { "index": 0, "label": "Samsung TV" },
+      "hdmi1": { "index": 1, "label": "HDMI1" },
+      "usbc":  { "index": 2, "label": "USB-C" }
+    }
+  },
+
+  "timing": {
+    "menuDelaySeconds": 1.0,
+    "keyDelaySeconds": 0.3,
+    "connectTimeoutSeconds": 15
+  },
+
+  "discovery": {
+    "enabled": true,
+    "portScanTimeoutSeconds": 3
+  },
+
+  "usbSwitch": {
+    "_comment": [
+      "Devices that live behind the Lemorele switch. If ANY of them is present",
+      "on this PC, the keyboard and mouse are here. Matching is a",
+      "case-insensitive prefix match against present USB device instance IDs.",
+      "",
+      "Pick IDs that are unambiguous. 'USB\\VID_05E3&PID_0610' would be a bad",
+      "sentinel on this machine because three identical Genesys Logic hubs are",
+      "attached and only one of them belongs to the switch - the prefix would",
+      "always match and the switch would never appear to move.",
+      "",
+      "Entries ending in a serial number (the keyboard below) survive being",
+      "re-plugged into a different port. Entries ending in a port path do not.",
+      "Run tools\\Find-UsbSentinel.ps1 to regenerate this list."
+    ],
+    "sentinelInstanceIds": [
+      "USB\\VID_05E3&PID_0626\\9&b020893&0&3",
+      "USB\\VID_046D&PID_C336\\066634543336",
+      "USB\\VID_046D&PID_C548"
+    ],
+    "pollIntervalSeconds": 0.4,
+    "presentInput": "hdmi1",
+    "absentInput": "usbc"
+  }
+}

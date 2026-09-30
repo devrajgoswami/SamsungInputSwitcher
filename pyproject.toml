@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "samsung-input-switcher"
+version = "1.0.0"
+description = "Switch a Samsung Smart Monitor's input source over the network, following a USB KVM switch."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "samsungtvws[async]>=2.6.0",
+    "requests>=2.31.0",
+]
+
+[project.scripts]
+samsung-input = "samsung_input.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
