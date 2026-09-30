@@ -278,6 +278,7 @@ utility or an HDMI EDID emulator is the usual workaround.
 
 ```
 config.json                     all tunable settings
+AGENTS.md                       context for AI agents working on this repo
 pyproject.toml                  package metadata
 src/samsung_input/
     cli.py                      command line interface
